@@ -1,0 +1,22 @@
+{
+  "name": "Expense Tracker",
+  "short_name": "ExpenseTracker",
+  "description": "A comprehensive expense tracking application to manage your finances",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3B82F6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["finance", "productivity", "lifestyle"],
+  "lang": "en",
+  "dir": "ltr"
+}
