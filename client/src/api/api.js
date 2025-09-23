@@ -2,7 +2,9 @@ import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
 // Base API configuration
-const API_BASE_URL = 'http://localhost:8080/api';
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? '/api'  // In production (Docker), use relative path via nginx proxy
+  : 'http://localhost:8080/api';  // In development, use direct localhost
 
 // Create axios instance
 const api = axios.create({
