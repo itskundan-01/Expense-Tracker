@@ -41,3 +41,4 @@ lerna-debug.log*
 coverage/
 
 DOCKER-DEMO-GUIDE.md
+output.txt

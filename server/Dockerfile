@@ -26,14 +26,14 @@ RUN addgroup --system spring && adduser --system --group spring
 # Set working directory
 WORKDIR /app
 
-# Create directory for H2 database files and logs
-RUN mkdir -p /app/data /app/logs && chown -R spring:spring /app
+# Create directory for H2 database files and logs with proper permissions
+RUN mkdir -p /app/data /app/logs && chmod -R 755 /app && chown -R spring:spring /app
 
 # Copy jar from build stage
 COPY --from=build /app/target/*.jar app.jar
 
-# Change ownership of the app directory
-RUN chown -R spring:spring /app
+# Ensure proper ownership and permissions
+RUN chown -R spring:spring /app && chmod -R 755 /app
 
 # Switch to non-root user
 USER spring
