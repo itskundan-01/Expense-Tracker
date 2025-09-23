@@ -1,0 +1,33 @@
+NGINX SSL TROUBLESHOOTING STEPS:
+
+1. Check Nginx service status:
+sudo systemctl status nginx
+
+2. Check what ports Nginx is listening on:
+sudo netstat -tulpn | grep nginx
+# or
+sudo ss -tulpn | grep nginx
+
+3. Check Nginx error logs:
+sudo tail -20 /var/log/nginx/error.log
+
+4. Check if the SSL configuration file is properly linked:
+ls -la /etc/nginx/sites-enabled/
+
+5. Check the content of your configuration file:
+cat /etc/nginx/sites-available/expense-tracker-api.kundanprojects.space
+
+6. If the file is not linked to sites-enabled, create the symlink:
+sudo ln -s /etc/nginx/sites-available/expense-tracker-api.kundanprojects.space /etc/nginx/sites-enabled/
+
+7. Test configuration and restart:
+sudo nginx -t
+sudo systemctl restart nginx
+
+8. Verify Nginx is now listening on port 443:
+sudo netstat -tulpn | grep :443
+
+9. Test the connection:
+curl https://expense-tracker-api.kundanprojects.space/api/health
+
+Run these commands in order to diagnose the issue!

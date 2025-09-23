@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/useAuthStore';
 
 // Base API configuration
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? '/api'  // In production (Docker), use relative path via nginx proxy
+  ? 'https://expense-tracker-api.kundanprojects.space/api'  // Production API URL
   : 'http://localhost:8080/api';  // In development, use direct localhost
 
 // Create axios instance
