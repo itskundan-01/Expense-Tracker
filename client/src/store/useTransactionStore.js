@@ -46,20 +46,33 @@ export const useTransactionStore = create(
         set({ loading: true, error: null });
         try {
           const data = await api.categories.getAll();
-          set({ categories: data, loading: false });
+          console.log('🏷️ Categories API response:', data);
+          
+          // Handle both array and wrapped response formats
+          const categories = Array.isArray(data) ? data : (data?.data || []);
+          console.log('🏷️ Processed categories:', categories);
+          
+          if (!Array.isArray(categories)) {
+            console.warn('🏷️ Categories data is not an array:', categories);
+            set({ categories: [], loading: false });
+            return;
+          }
+          
+          set({ categories, loading: false });
         } catch (error) {
+          console.error('🏷️ Failed to fetch categories:', error);
           // If it's a 401/404 (missing endpoint), use mock data
           if (error.response?.status === 401 || error.response?.status === 404) {
             console.log('🏷️ Using mock categories (endpoint not implemented)');
             const mockCategories = [
-              { id: 1, name: 'Food & Dining', color: '#FF6B6B', icon: '🍽️' },
-              { id: 2, name: 'Transportation', color: '#4ECDC4', icon: '🚗' },
-              { id: 3, name: 'Shopping', color: '#45B7D1', icon: '🛍️' },
-              { id: 4, name: 'Entertainment', color: '#96CEB4', icon: '🎬' },
-              { id: 5, name: 'Bills & Utilities', color: '#FFEAA7', icon: '💡' },
-              { id: 6, name: 'Healthcare', color: '#DDA0DD', icon: '🏥' },
-              { id: 7, name: 'Education', color: '#98D8C8', icon: '📚' },
-              { id: 8, name: 'Travel', color: '#F7DC6F', icon: '✈️' }
+              { id: 1, name: 'Food & Dining', type: 'expense', color: '#FF6B6B', icon: '🍽️' },
+              { id: 2, name: 'Transportation', type: 'expense', color: '#4ECDC4', icon: '🚗' },
+              { id: 3, name: 'Shopping', type: 'expense', color: '#45B7D1', icon: '🛍️' },
+              { id: 4, name: 'Entertainment', type: 'expense', color: '#96CEB4', icon: '🎬' },
+              { id: 5, name: 'Bills & Utilities', type: 'expense', color: '#FFEAA7', icon: '💡' },
+              { id: 6, name: 'Healthcare', type: 'expense', color: '#DDA0DD', icon: '🏥' },
+              { id: 7, name: 'Education', type: 'expense', color: '#98D8C8', icon: '📚' },
+              { id: 8, name: 'Travel', type: 'expense', color: '#F7DC6F', icon: '✈️' }
             ];
             set({ categories: mockCategories, loading: false, error: null });
             return;
@@ -99,7 +112,10 @@ export const useTransactionStore = create(
       addTransaction: async (transaction) => {
         set({ loading: true, error: null });
         try {
-          const newTransaction = await api.transactions.create(transaction);
+          const response = await api.transactions.create(transaction);
+          // API returns {success: true, data: {...}}
+          const newTransaction = response?.data || response;
+          console.log('📊 Created transaction:', newTransaction);
           set((state) => ({
             transactions: [newTransaction, ...state.transactions],
             loading: false
@@ -114,7 +130,10 @@ export const useTransactionStore = create(
       updateTransaction: async (id, updates) => {
         set({ loading: true, error: null });
         try {
-          const updatedTransaction = await api.transactions.update(id, updates);
+          const response = await api.transactions.update(id, updates);
+          // API returns {success: true, data: {...}}
+          const updatedTransaction = response?.data || response;
+          console.log('📊 Updated transaction:', updatedTransaction);
           set((state) => ({
             transactions: state.transactions.map((transaction) =>
               transaction.id === id ? updatedTransaction : transaction
@@ -129,14 +148,20 @@ export const useTransactionStore = create(
       },
 
       deleteTransaction: async (id) => {
+        if (!id) {
+          console.error('📊 Cannot delete transaction: id is undefined');
+          return;
+        }
         set({ loading: true, error: null });
         try {
+          console.log('📊 Deleting transaction:', id);
           await api.transactions.delete(id);
           set((state) => ({
             transactions: state.transactions.filter((transaction) => transaction.id !== id),
             loading: false
           }));
         } catch (error) {
+          console.error('📊 Delete error:', error);
           set({ error: error.message, loading: false });
           throw error;
         }
@@ -263,19 +288,21 @@ export const useTransactionStore = create(
         }
         
         return transactions.filter((transaction) => {
-          if (filters.startDate && new Date(transaction.date) < new Date(filters.startDate)) {
+          const txDate = transaction.transactionDate || transaction.date;
+          if (filters.startDate && txDate && new Date(txDate) < new Date(filters.startDate)) {
             return false;
           }
-          if (filters.endDate && new Date(transaction.date) > new Date(filters.endDate)) {
+          if (filters.endDate && txDate && new Date(txDate) > new Date(filters.endDate)) {
             return false;
           }
-          if (filters.category && transaction.category?.id !== filters.category) {
+          if (filters.category && transaction.categoryId !== filters.category) {
             return false;
           }
-          if (filters.type && transaction.type !== filters.type) {
+          // Case-insensitive type comparison
+          if (filters.type && (transaction.type || '').toLowerCase() !== filters.type.toLowerCase()) {
             return false;
           }
-          if (filters.account && transaction.account?.id !== filters.account) {
+          if (filters.account && transaction.accountId !== filters.account) {
             return false;
           }
           return true;
@@ -284,16 +311,18 @@ export const useTransactionStore = create(
 
       getTotalIncome: () => {
         const { transactions } = get();
+        if (!Array.isArray(transactions)) return 0;
         return transactions
-          .filter((t) => t.type === 'INCOME')
-          .reduce((sum, t) => sum + t.amount, 0);
+          .filter((t) => (t.type || '').toLowerCase() === 'income')
+          .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
       },
 
       getTotalExpenses: () => {
         const { transactions } = get();
+        if (!Array.isArray(transactions)) return 0;
         return transactions
-          .filter((t) => t.type === 'EXPENSE')
-          .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          .filter((t) => (t.type || '').toLowerCase() === 'expense')
+          .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount) || 0), 0);
       },
 
       getBalance: () => {

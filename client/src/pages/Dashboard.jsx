@@ -177,6 +177,11 @@ const TransactionList = () => {
     loading: budgetLoading,
     error: budgetError 
   } = useBudgetStore();
+
+  const {
+    fetchAccounts,
+    getTotalBalance
+  } = useAccountStore();
   
   const [isInitializing, setIsInitializing] = useState(true);
 
@@ -187,7 +192,8 @@ const TransactionList = () => {
         // Initialize all data in parallel
         await Promise.all([
           initTransactionData(),
-          fetchBudgets()
+          fetchBudgets(),
+          fetchAccounts()
         ]);
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
@@ -197,7 +203,7 @@ const TransactionList = () => {
     };
 
     initializeDashboard();
-  }, [initTransactionData, fetchBudgets]);
+  }, [initTransactionData, fetchBudgets, fetchAccounts]);
 
   // Show loading state during initialization
   if (isInitializing) {
@@ -239,9 +245,9 @@ const TransactionList = () => {
       icon: TrendingDown
     },
     { 
-      title: 'Net Balance', 
-      value: getBalance(), 
-      change: '+8.1%', 
+      title: 'Account Balance', 
+      value: getTotalBalance(), 
+      change: 'Across all accounts', 
       changeType: 'positive',
       icon: DollarSign
     },

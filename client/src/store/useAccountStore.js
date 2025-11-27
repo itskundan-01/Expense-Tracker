@@ -1,109 +1,112 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { accountsAPI } from '../api/endpoints';
 
-export const useAccountStore = create(
-  persist(
-    (set, get) => ({
-      accounts: [
-        {
-          id: 1,
-          name: 'Checking Account',
-          type: 'checking',
-          balance: 4250.75,
-          currency: 'INR',
-          lastFour: '1234',
-          color: '#3B82F6',
-          isActive: true,
-        },
-        {
-          id: 2,
-          name: 'Savings Account',
-          type: 'savings',
-          balance: 15500.2,
-          currency: 'INR',
-          lastFour: '5678',
-          color: '#10B981',
-          isActive: true,
-        },
-        {
-          id: 3,
-          name: 'Credit Card',
-          type: 'credit',
-          balance: -850.4,
-          currency: 'INR',
-          lastFour: '9876',
-          color: '#EF4444',
-          isActive: true,
-        },
-      ],
+export const useAccountStore = create((set, get) => ({
+  accounts: [],
+  isLoading: false,
+  error: null,
 
-      // Actions
-      addAccount: (account) => {
-        const newAccount = {
-          ...account,
-          id: Date.now(),
-          createdAt: new Date().toISOString(),
-          isActive: true,
-        };
-        set((state) => ({
-          accounts: [...state.accounts, newAccount],
-        }));
-      },
-
-      updateAccount: (id, updates) => {
-        set((state) => ({
-          accounts: state.accounts.map((account) =>
-            account.id === id ? { ...account, ...updates } : account
-          ),
-        }));
-      },
-
-      deleteAccount: (id) => {
-        set((state) => ({
-          accounts: state.accounts.filter((account) => account.id !== id),
-        }));
-      },
-
-      // Update account balance based on transactions
-      updateAccountBalance: (accountId, amount, type) => {
-        set((state) => ({
-          accounts: state.accounts.map((account) => {
-            if (account.id === accountId) {
-              const newBalance = type === 'income' 
-                ? account.balance + amount 
-                : account.balance - amount;
-              return { ...account, balance: newBalance };
-            }
-            return account;
-          }),
-        }));
-      },
-
-      getTotalBalance: () => {
-        const { accounts } = get();
-        return accounts
-          .filter((account) => account.isActive)
-          .reduce((total, account) => {
-            // For credit accounts, negative balance is actually positive (credit available)
-            if (account.type === 'credit') {
-              return total - account.balance; // Convert negative to positive
-            }
-            return total + account.balance;
-          }, 0);
-      },
-
-      getAccountsByType: (type) => {
-        const { accounts } = get();
-        return accounts.filter((account) => account.type === type && account.isActive);
-      },
-
-      getActiveAccounts: () => {
-        const { accounts } = get();
-        return accounts.filter((account) => account.isActive);
-      },
-    }),
-    {
-      name: 'account-storage',
+  // Fetch all accounts from backend
+  fetchAccounts: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await accountsAPI.getAll();
+      console.log('🏦 Fetched accounts:', data);
+      // Handle both array response and wrapped response
+      const accountsList = Array.isArray(data) ? data : (data.accounts || []);
+      set({ accounts: accountsList, isLoading: false });
+      return accountsList;
+    } catch (error) {
+      console.error('🏦 Error fetching accounts:', error);
+      set({ error: error.message, isLoading: false });
+      return [];
     }
-  )
-);
+  },
+
+  // Create a new account
+  createAccount: async (accountData) => {
+    set({ isLoading: true, error: null });
+    try {
+      const newAccount = await accountsAPI.create(accountData);
+      console.log('🏦 Created account:', newAccount);
+      set((state) => ({
+        accounts: [...state.accounts, newAccount],
+        isLoading: false,
+      }));
+      return newAccount;
+    } catch (error) {
+      console.error('🏦 Error creating account:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Update an account
+  updateAccount: async (id, updates) => {
+    set({ isLoading: true, error: null });
+    try {
+      const updatedAccount = await accountsAPI.update(id, updates);
+      console.log('🏦 Updated account:', updatedAccount);
+      set((state) => ({
+        accounts: state.accounts.map((account) =>
+          account.id === id ? updatedAccount : account
+        ),
+        isLoading: false,
+      }));
+      return updatedAccount;
+    } catch (error) {
+      console.error('🏦 Error updating account:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Delete an account
+  deleteAccount: async (id) => {
+    set({ isLoading: true, error: null });
+    try {
+      await accountsAPI.delete(id);
+      console.log('🏦 Deleted account:', id);
+      set((state) => ({
+        accounts: state.accounts.filter((account) => account.id !== id),
+        isLoading: false,
+      }));
+    } catch (error) {
+      console.error('🏦 Error deleting account:', error);
+      set({ error: error.message, isLoading: false });
+      throw error;
+    }
+  },
+
+  // Calculate total balance across all active accounts
+  getTotalBalance: () => {
+    const { accounts } = get();
+    return accounts
+      .filter((account) => account.isActive !== false)
+      .reduce((total, account) => {
+        const balance = parseFloat(account.balance) || 0;
+        // For credit accounts, negative balance means debt
+        if (account.type === 'credit') {
+          return total + balance; // Keep as is (already negative if debt)
+        }
+        return total + balance;
+      }, 0);
+  },
+
+  // Get accounts by type
+  getAccountsByType: (type) => {
+    const { accounts } = get();
+    return accounts.filter((account) => account.type === type && account.isActive !== false);
+  },
+
+  // Get all active accounts
+  getActiveAccounts: () => {
+    const { accounts } = get();
+    return accounts.filter((account) => account.isActive !== false);
+  },
+
+  // Clear accounts (for logout)
+  clearAccounts: () => {
+    set({ accounts: [], isLoading: false, error: null });
+  },
+}));

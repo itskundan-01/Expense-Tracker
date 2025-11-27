@@ -111,9 +111,16 @@ const BudgetCard = ({ budget, onEdit, onDelete }) => {
 
 const BudgetsPage = () => {
   const { budgets, deleteBudget, updateBudgetSpending } = useBudgetStore();
-  const { transactions } = useTransactionStore();
+  const { transactions, categories, fetchCategories } = useTransactionStore();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
+
+  // Fetch categories when component mounts
+  useEffect(() => {
+    if (categories.length === 0) {
+      fetchCategories();
+    }
+  }, [categories.length, fetchCategories]);
 
   useEffect(() => {
     // Update budget spending when component mounts or transactions change

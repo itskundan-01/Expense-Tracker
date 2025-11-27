@@ -25,24 +25,36 @@ const ReportsPage = () => {
 
   // Filter transactions by date range
   const filteredTransactions = transactions.filter(transaction => {
-    const transactionDate = parseISO(transaction.date);
-    const start = parseISO(dateRange.startDate);
-    const end = parseISO(dateRange.endDate);
-    return transactionDate >= start && transactionDate <= end;
+    const dateStr = transaction.transactionDate || transaction.date;
+    if (!dateStr) return false;
+    try {
+      const transactionDate = parseISO(dateStr);
+      const start = parseISO(dateRange.startDate);
+      const end = parseISO(dateRange.endDate);
+      return transactionDate >= start && transactionDate <= end;
+    } catch (e) {
+      return false;
+    }
   });
 
   // Prepare monthly data for charts
   const monthlyData = {};
   filteredTransactions.forEach(transaction => {
-    const month = format(parseISO(transaction.date), 'MMM yyyy');
-    if (!monthlyData[month]) {
-      monthlyData[month] = { month, income: 0, expense: 0 };
-    }
-    
-    if (transaction.type === 'income') {
-      monthlyData[month].income += transaction.amount;
-    } else {
-      monthlyData[month].expense += Math.abs(transaction.amount);
+    const dateStr = transaction.transactionDate || transaction.date;
+    if (!dateStr) return;
+    try {
+      const month = format(parseISO(dateStr), 'MMM yyyy');
+      if (!monthlyData[month]) {
+        monthlyData[month] = { month, income: 0, expense: 0 };
+      }
+      
+      if (transaction.type === 'income') {
+        monthlyData[month].income += transaction.amount;
+      } else {
+        monthlyData[month].expense += Math.abs(transaction.amount);
+      }
+    } catch (e) {
+      // Skip invalid dates
     }
   });
 
@@ -81,11 +93,11 @@ const ReportsPage = () => {
       ...filteredTransactions.map(t => {
         const category = categories.find(c => c.id === t.categoryId);
         return [
-          t.date,
-          t.type,
+          t.transactionDate || t.date || '',
+          t.type || '',
           category?.name || 'Unknown',
-          t.description,
-          t.amount
+          t.description || '',
+          t.amount || 0
         ];
       })
     ];

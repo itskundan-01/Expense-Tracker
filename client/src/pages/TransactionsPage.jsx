@@ -17,8 +17,15 @@ const TransactionItem = ({ transaction, onEdit, onDelete }) => {
   const { categories } = useTransactionStore();
   const { accounts } = useAccountStore();
   
-  const category = categories.find(c => c.id === transaction.categoryId);
-  const account = accounts.find(a => a.id === transaction.accountId);
+  // Use categoryName from API response, or fallback to local lookup
+  const categoryName = transaction.categoryName || categories.find(c => c.id === transaction.categoryId)?.name || 'Unknown Category';
+  const categoryIcon = transaction.categoryIcon || categories.find(c => c.id === transaction.categoryId)?.icon || '💰';
+  
+  // Use accountName from API response, or fallback to local lookup
+  const accountName = transaction.accountName || accounts.find(a => a.id === transaction.accountId)?.name || 'No Account';
+
+  // Normalize type to lowercase for comparison
+  const isIncome = (transaction.type || '').toLowerCase() === 'income';
 
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-200 hover:bg-gray-50
@@ -26,24 +33,24 @@ const TransactionItem = ({ transaction, onEdit, onDelete }) => {
       <div className="flex items-center">
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 ${
-            transaction.type === 'income' 
+            isIncome 
               ? 'bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400' 
               : 'bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-400'
           }`}
         >
-          {transaction.type === 'income' ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
+          {isIncome ? <ArrowUp size={20} /> : <ArrowDown size={20} />}
         </div>
         <div>
           <div className="flex items-center space-x-2">
-            {category && <span className="text-lg">{category.icon}</span>}
+            <span className="text-lg">{categoryIcon}</span>
             <p className="font-semibold text-gray-800 dark:text-gray-100">
-              {category?.name || 'Unknown Category'}
+              {categoryName}
             </p>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{transaction.description}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{transaction.description || 'No description'}</p>
           <div className="flex items-center space-x-4 text-xs text-gray-400 dark:text-gray-500">
-            <span>{account?.name || 'Unknown Account'}</span>
-            <span>{formatRelativeDate(transaction.date)}</span>
+            <span>{accountName}</span>
+            <span>{formatRelativeDate(transaction.transactionDate || transaction.date)}</span>
             {transaction.tags && transaction.tags.length > 0 && (
               <span className="text-indigo-600 dark:text-indigo-400">
                 {transaction.tags.join(', ')}
@@ -54,8 +61,8 @@ const TransactionItem = ({ transaction, onEdit, onDelete }) => {
       </div>
       <div className="flex items-center space-x-3">
         <div className="text-right">
-          <p className={`font-bold text-lg ${transaction.type === 'income' ? 'text-green-600' : 'text-gray-800 dark:text-gray-100'}`}>
-            {transaction.type === 'income' 
+          <p className={`font-bold text-lg ${isIncome ? 'text-green-600' : 'text-gray-800 dark:text-gray-100'}`}>
+            {isIncome 
               ? `+${formatINR(transaction.amount)}` 
               : `-${formatINR(Math.abs(transaction.amount))}`
             }
@@ -90,7 +97,7 @@ const TransactionsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
 
   const filteredTransactions = getFilteredTransactions().filter(transaction =>
-    transaction.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (transaction.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleEdit = (transaction) => {
@@ -99,9 +106,13 @@ const TransactionsPage = () => {
   };
 
   const handleDelete = async (transactionId) => {
+    if (!transactionId) {
+      showError('Cannot delete: Transaction ID is missing');
+      return;
+    }
     if (window.confirm('Are you sure you want to delete this transaction?')) {
       try {
-        deleteTransaction(transactionId);
+        await deleteTransaction(transactionId);
         showSuccess('Transaction deleted successfully');
       } catch (error) {
         showError('Failed to delete transaction');

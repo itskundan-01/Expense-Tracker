@@ -12,8 +12,8 @@ import { formatCurrency } from '../utils/currency';
 import { showSuccess, showError } from '../utils/notifications';
 
 const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
-  const { addTransaction, updateTransaction, categories } = useTransactionStore();
-  const { accounts } = useAccountStore();
+  const { addTransaction, updateTransaction, categories, fetchCategories } = useTransactionStore();
+  const { accounts, fetchAccounts } = useAccountStore();
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [transactionType, setTransactionType] = useState('expense');
@@ -30,18 +30,44 @@ const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
       type: 'expense',
       amount: '',
       description: '',
-      date: new Date().toISOString().split('T')[0],
+      transactionDate: new Date().toISOString().split('T')[0],
       categoryId: '',
       accountId: '',
-      tags: '',
+      notes: '',
     },
   });
 
   const watchedType = watch('type');
 
+  // Fetch categories and accounts when form opens
   React.useEffect(() => {
-    if (transaction) {
-      setTransactionType(transaction.type);
+    if (isOpen) {
+      // Fetch categories if empty
+      if (!categories || categories.length === 0) {
+        fetchCategories();
+      }
+      // Fetch accounts if empty
+      if (!accounts || accounts.length === 0) {
+        fetchAccounts();
+      }
+    }
+  }, [isOpen, categories, accounts, fetchCategories, fetchAccounts]);
+
+  React.useEffect(() => {
+    if (transaction && isOpen) {
+      // Reset form with transaction values when editing
+      reset({
+        type: transaction.type || 'expense',
+        amount: transaction.amount || '',
+        description: transaction.description || '',
+        transactionDate: transaction.transactionDate || transaction.date || new Date().toISOString().split('T')[0],
+        categoryId: transaction.categoryId || '',
+        accountId: transaction.accountId || '',
+        notes: transaction.notes || '',
+      });
+      
+      setTransactionType(transaction.type || 'expense');
+      
       const category = categories.find(c => c.id === transaction.categoryId);
       const account = accounts.find(a => a.id === transaction.accountId);
       
@@ -61,8 +87,22 @@ const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
           type: account.type,
         });
       }
+    } else if (!transaction && isOpen) {
+      // Reset to defaults for new transaction
+      reset({
+        type: 'expense',
+        amount: '',
+        description: '',
+        transactionDate: new Date().toISOString().split('T')[0],
+        categoryId: '',
+        accountId: '',
+        notes: '',
+      });
+      setTransactionType('expense');
+      setSelectedCategory(null);
+      setSelectedAccount(null);
     }
-  }, [transaction, categories, accounts]);
+  }, [transaction, categories, accounts, isOpen, reset]);
 
   const filteredCategories = categories
     .filter(cat => cat.type === transactionType)
@@ -74,39 +114,52 @@ const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
     }));
 
   const accountOptions = accounts
-    .filter(acc => acc.isActive)
+    .filter(acc => acc.isActive !== false)
     .map(acc => ({
       value: acc.id,
-      label: `${acc.name} (${formatCurrency(acc.balance, acc.currency)})`,
+      label: `${acc.name} (${formatCurrency(acc.balance, acc.currency || 'INR')})`,
       type: acc.type,
     }));
 
   const onSubmit = async (data) => {
     try {
-      if (!selectedCategory || !selectedAccount) {
-        showError('Please select both category and account');
+      if (!selectedCategory) {
+        showError('Please select a category');
+        return;
+      }
+
+      if (!selectedAccount) {
+        showError('Please select an account');
         return;
       }
 
       const transactionData = {
-        ...data,
+        description: data.description,
         amount: parseFloat(data.amount),
+        type: data.type,
         categoryId: selectedCategory.value,
         accountId: selectedAccount.value,
-        tags: data.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+        transactionDate: data.transactionDate,
+        notes: data.notes || null,
       };
 
+      console.log('📤 Sending transaction data:', transactionData);
+
       if (transaction) {
-        updateTransaction(transaction.id, transactionData);
+        await updateTransaction(transaction.id, transactionData);
         showSuccess('Transaction updated successfully');
       } else {
-        addTransaction(transactionData);
+        await addTransaction(transactionData);
         showSuccess('Transaction added successfully');
       }
       
+      // Refresh accounts to get updated balances
+      fetchAccounts();
+      
       handleClose();
     } catch (error) {
-      showError('Failed to save transaction');
+      console.error('Transaction error:', error);
+      showError(error.response?.data?.message || 'Failed to save transaction');
     }
   };
 
@@ -222,18 +275,27 @@ const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
           />
         </div>
 
-        {/* Account */}
+        {/* Account - Required for balance tracking */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Account *
           </label>
-          <Select
-            value={selectedAccount}
-            onChange={setSelectedAccount}
-            options={accountOptions}
-            styles={customSelectStyles}
-            placeholder="Select an account"
-          />
+          {accounts.length === 0 ? (
+            <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm text-yellow-700 dark:text-yellow-300">
+              No accounts found. Please add an account first from the Accounts page.
+            </div>
+          ) : (
+            <Select
+              value={selectedAccount}
+              onChange={setSelectedAccount}
+              options={accountOptions}
+              styles={customSelectStyles}
+              placeholder="Select an account"
+            />
+          )}
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Select the account for this transaction. Balance will be updated automatically.
+          </p>
         </div>
 
         {/* Description */}
@@ -252,18 +314,18 @@ const TransactionForm = ({ isOpen, onClose, transaction = null }) => {
           label="Date"
           type="date"
           required
-          {...register('date', {
+          {...register('transactionDate', {
             required: 'Date is required',
           })}
-          error={errors.date?.message}
+          error={errors.transactionDate?.message}
         />
 
-        {/* Tags */}
+        {/* Notes */}
         <Input
-          label="Tags"
-          placeholder="Enter tags separated by commas"
-          {...register('tags')}
-          helper="Optional: Add tags for better organization"
+          label="Notes"
+          placeholder="Enter additional notes (optional)"
+          {...register('notes')}
+          helper="Optional: Add notes for more details"
         />
 
         {/* Form Actions */}

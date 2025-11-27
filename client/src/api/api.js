@@ -42,23 +42,24 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // Only log errors for critical endpoints, not missing ones
-    const missingEndpoints = ['/budgets', '/accounts', '/categories'];
-    const isMissingEndpoint = missingEndpoints.some(endpoint => 
-      error.config?.url?.includes(endpoint)
-    );
+    const status = error.response?.status;
+    const url = error.config?.url;
     
-    if (!isMissingEndpoint) {
-      console.error('🔥 API - Error:', error.config?.url, error.response?.status);
-      console.error('🔥 API - Error details:', error.response?.data);
+    console.error('🔥 API - Error:', url, status);
+    console.error('🔥 API - Error details:', error.response?.data);
+    
+    // Handle 400 - Bad Request (validation errors) - don't logout!
+    if (status === 400) {
+      console.log('🔥 API - 400 Bad Request (validation error), not logging out');
+      return Promise.reject(error);
     }
     
     // Handle 401 - unauthorized with more intelligence
-    if (error.response?.status === 401) {
-      console.warn('🔥 API - 401 Unauthorized detected for:', error.config?.url);
+    if (status === 401) {
+      console.warn('🔥 API - 401 Unauthorized detected for:', url);
       
       // Check if this is a valid auth endpoint (login/register should not trigger logout)
-      const isAuthEndpoint = error.config?.url?.includes('/auth/');
+      const isAuthEndpoint = url?.includes('/auth/');
       
       if (isAuthEndpoint) {
         console.log('🔥 API - 401 on auth endpoint, not clearing session');
@@ -66,12 +67,12 @@ api.interceptors.response.use(
       }
       
       // Check if this is a missing endpoint (likely server-side implementation missing)
-      const missingEndpoints = ['/budgets', '/accounts', '/categories'];
-      const isMissingEndpoint = missingEndpoints.some(endpoint => 
-        error.config?.url?.includes(endpoint)
+      const possiblyMissingEndpoints = ['/budgets'];
+      const isPossiblyMissing = possiblyMissingEndpoints.some(endpoint => 
+        url?.includes(endpoint)
       );
       
-      if (isMissingEndpoint) {
+      if (isPossiblyMissing) {
         // Silently handle missing endpoints to reduce console noise
         return Promise.reject(error);
       }
@@ -100,15 +101,14 @@ api.interceptors.response.use(
     }
     
     // Handle 404 - Not Found (missing endpoints)
-    if (error.response?.status === 404) {
-      const missingEndpoints = ['/budgets', '/accounts', '/categories'];
+    if (status === 404) {
+      const missingEndpoints = ['/budgets'];
       const isMissingEndpoint = missingEndpoints.some(endpoint => 
-        error.config?.url?.includes(endpoint)
+        url?.includes(endpoint)
       );
       
       if (isMissingEndpoint) {
-        console.warn('🔥 API - 404 on missing endpoint:', error.config?.url);
-        console.log('🔥 API - This endpoint is not implemented on the server yet');
+        console.warn('🔥 API - 404 on missing endpoint:', url);
       }
     }
     

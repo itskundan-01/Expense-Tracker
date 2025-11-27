@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import Select from 'react-select';
 
 import Modal from './UI/Modal';
 import Button from './UI/Button';
 import Input from './UI/Input';
 import { useBudgetStore } from '../store/useBudgetStore';
-import { useTransactionStore } from '../store/useTransactionStore';
-import { formatCurrency } from '../utils/currency';
+import { categoriesAPI } from '../api/endpoints';
 import { showSuccess, showError } from '../utils/notifications';
 
 const BudgetForm = ({ isOpen, onClose, budget = null }) => {
   const { addBudget, updateBudget } = useBudgetStore();
-  const { categories } = useTransactionStore();
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [loadingCategories, setLoadingCategories] = useState(false);
   
   const {
     register,
@@ -24,49 +23,62 @@ const BudgetForm = ({ isOpen, onClose, budget = null }) => {
     defaultValues: budget || {
       name: '',
       amount: '',
-      categoryId: '',
       period: 'monthly',
       startDate: new Date().toISOString().split('T')[0],
       alertThreshold: 80,
     },
   });
 
-  React.useEffect(() => {
-    if (budget) {
-      const category = categories.find(c => c.id === budget.categoryId);
-      if (category) {
-        setSelectedCategory({
-          value: category.id,
-          label: category.name,
-          color: category.color,
-          icon: category.icon,
-        });
+  // Fetch categories directly from API when form opens
+  useEffect(() => {
+    const loadCategories = async () => {
+      if (!isOpen) return;
+      
+      setLoadingCategories(true);
+      try {
+        const data = await categoriesAPI.getAll();
+        console.log('📦 BudgetForm - Raw categories from API:', data);
+        
+        // Handle both array and wrapped response
+        const categoriesData = Array.isArray(data) ? data : (data?.data || []);
+        console.log('📦 BudgetForm - Processed categories:', categoriesData);
+        
+        setCategories(categoriesData);
+        
+        // If editing, set the selected category
+        if (budget && budget.categoryId) {
+          setSelectedCategoryId(String(budget.categoryId));
+        }
+      } catch (error) {
+        console.error('📦 BudgetForm - Failed to load categories:', error);
+        showError('Failed to load categories');
+      } finally {
+        setLoadingCategories(false);
       }
-    }
-  }, [budget, categories]);
+    };
 
-  const expenseCategories = categories
-    .filter(cat => cat.type === 'expense')
-    .map(cat => ({
-      value: cat.id,
-      label: cat.name,
-      color: cat.color,
-      icon: cat.icon,
-    }));
+    loadCategories();
+  }, [isOpen, budget]);
+
+  // Filter for expense categories only
+  const expenseCategories = categories.filter(cat => cat.type === 'expense');
+  console.log('📦 BudgetForm - Expense categories:', expenseCategories);
 
   const onSubmit = async (data) => {
     try {
-      if (!selectedCategory) {
+      if (!selectedCategoryId) {
         showError('Please select a category');
         return;
       }
 
+      const selectedCategory = categories.find(c => String(c.id) === selectedCategoryId);
+      
       const budgetData = {
         ...data,
         amount: parseFloat(data.amount),
-        categoryId: selectedCategory.value,
+        categoryId: parseInt(selectedCategoryId),
         alertThreshold: parseInt(data.alertThreshold),
-        name: data.name || selectedCategory.label,
+        name: data.name || selectedCategory?.name || 'Budget',
       };
 
       if (budget) {
@@ -79,25 +91,15 @@ const BudgetForm = ({ isOpen, onClose, budget = null }) => {
       
       handleClose();
     } catch (error) {
+      console.error('Failed to save budget:', error);
       showError('Failed to save budget');
     }
   };
 
   const handleClose = () => {
     reset();
-    setSelectedCategory(null);
+    setSelectedCategoryId('');
     onClose();
-  };
-
-  const customSelectStyles = {
-    control: (base, state) => ({
-      ...base,
-      borderColor: state.isFocused ? '#6366f1' : '#d1d5db',
-      boxShadow: state.isFocused ? '0 0 0 1px #6366f1' : 'none',
-      '&:hover': {
-        borderColor: '#6366f1',
-      },
-    }),
   };
 
   return (
@@ -121,24 +123,35 @@ const BudgetForm = ({ isOpen, onClose, budget = null }) => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Category *
           </label>
-          <Select
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            options={expenseCategories}
-            styles={customSelectStyles}
-            placeholder="Select a category"
-            formatOptionLabel={(option) => (
-              <div className="flex items-center">
-                <span className="mr-2">{option.icon}</span>
-                {option.label}
-              </div>
-            )}
-          />
+          {loadingCategories ? (
+            <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 dark:bg-gray-800 dark:border-gray-600">
+              Loading categories...
+            </div>
+          ) : (
+            <select
+              value={selectedCategoryId}
+              onChange={(e) => setSelectedCategoryId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-100"
+              required
+            >
+              <option value="">Select a category</option>
+              {expenseCategories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.icon} {cat.name}
+                </option>
+              ))}
+            </select>
+          )}
+          {expenseCategories.length === 0 && !loadingCategories && (
+            <p className="mt-1 text-sm text-red-500">
+              No expense categories found. Please create categories first.
+            </p>
+          )}
         </div>
 
         {/* Budget Amount */}
         <Input
-          label="Budget Amount"
+          label="Budget Amount *"
           type="number"
           step="0.01"
           placeholder="0.00"
@@ -205,8 +218,8 @@ const BudgetForm = ({ isOpen, onClose, budget = null }) => {
           </Button>
           <Button
             type="submit"
-            loading={isSubmitting}
             variant="primary"
+            loading={isSubmitting}
           >
             {budget ? 'Update Budget' : 'Create Budget'}
           </Button>

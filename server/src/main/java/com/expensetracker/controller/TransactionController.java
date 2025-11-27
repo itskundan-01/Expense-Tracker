@@ -172,6 +172,19 @@ public class TransactionController {
             transaction.setNotes(request.getNotes());
 
             Transaction savedTransaction = transactionService.createTransaction(transaction);
+            
+            // Update account balance based on transaction type
+            if (account != null) {
+                if ("income".equalsIgnoreCase(request.getType())) {
+                    // Income increases balance
+                    account.setBalance(account.getBalance().add(request.getAmount()));
+                } else {
+                    // Expense decreases balance
+                    account.setBalance(account.getBalance().subtract(request.getAmount()));
+                }
+                accountRepository.save(account);
+            }
+            
             TransactionResponse response = convertToResponse(savedTransaction);
 
             return ResponseEntity.ok(ApiResponse.success("Transaction created successfully", response));
@@ -208,26 +221,49 @@ public class TransactionController {
             }
 
             // Validate account if provided
-            Account account = null;
+            Account newAccount = null;
             if (request.getAccountId() != null) {
                 Optional<Account> accountOpt = accountRepository.findById(request.getAccountId());
                 if (accountOpt.isEmpty() || !accountOpt.get().getUser().getId().equals(user.getId())) {
                     return ResponseEntity.badRequest()
                             .body(ApiResponse.error("Invalid account"));
                 }
-                account = accountOpt.get();
+                newAccount = accountOpt.get();
             }
 
             Transaction transaction = transactionOpt.get();
+            
+            // Reverse the old transaction's effect on the old account
+            Account oldAccount = transaction.getAccount();
+            if (oldAccount != null) {
+                if ("income".equalsIgnoreCase(transaction.getType())) {
+                    oldAccount.setBalance(oldAccount.getBalance().subtract(transaction.getAmount()));
+                } else {
+                    oldAccount.setBalance(oldAccount.getBalance().add(transaction.getAmount()));
+                }
+                accountRepository.save(oldAccount);
+            }
+            
             transaction.setDescription(request.getDescription());
             transaction.setAmount(request.getAmount());
             transaction.setType(request.getType());
             transaction.setCategory(categoryOpt.get());
-            transaction.setAccount(account);
+            transaction.setAccount(newAccount);
             transaction.setTransactionDate(request.getTransactionDate());
             transaction.setNotes(request.getNotes());
 
             Transaction updatedTransaction = transactionService.updateTransaction(transaction);
+            
+            // Apply the new transaction's effect on the new account
+            if (newAccount != null) {
+                if ("income".equalsIgnoreCase(request.getType())) {
+                    newAccount.setBalance(newAccount.getBalance().add(request.getAmount()));
+                } else {
+                    newAccount.setBalance(newAccount.getBalance().subtract(request.getAmount()));
+                }
+                accountRepository.save(newAccount);
+            }
+            
             TransactionResponse response = convertToResponse(updatedTransaction);
 
             return ResponseEntity.ok(ApiResponse.success("Transaction updated successfully", response));
@@ -253,6 +289,21 @@ public class TransactionController {
             
             if (transactionOpt.isEmpty() || !transactionOpt.get().getUser().getId().equals(user.getId())) {
                 return ResponseEntity.notFound().build();
+            }
+
+            Transaction transaction = transactionOpt.get();
+            
+            // Reverse the balance change if account was associated
+            if (transaction.getAccount() != null) {
+                Account account = transaction.getAccount();
+                if ("income".equalsIgnoreCase(transaction.getType())) {
+                    // Deleting income decreases balance
+                    account.setBalance(account.getBalance().subtract(transaction.getAmount()));
+                } else {
+                    // Deleting expense increases balance
+                    account.setBalance(account.getBalance().add(transaction.getAmount()));
+                }
+                accountRepository.save(account);
             }
 
             transactionService.deleteTransaction(id);
