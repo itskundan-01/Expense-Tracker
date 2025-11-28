@@ -2,9 +2,11 @@ import axios from 'axios';
 import { useAuthStore } from '../store/useAuthStore';
 
 // Base API configuration
-const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://expense-tracker-api.kundanprojects.space/api'  // Production API URL
-  : 'http://localhost:8080/api';  // In development, use direct localhost
+// Use relative path '/api' which works with:
+// - Kubernetes: nginx proxies /api to backend-service:8080
+// - Docker: nginx proxies /api to backend container
+// - Local dev: Vite proxy handles /api to localhost:8080
+const API_BASE_URL = '/api';
 
 // Create axios instance
 const api = axios.create({

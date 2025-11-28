@@ -1,0 +1,40 @@
+---
+# Wait for Deployments Task
+
+- name: Wait for Backend pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ project_namespace }}"
+    label_selectors:
+      - app=backend
+    wait: yes
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 300
+  register: backend_pods
+
+- name: Display backend pod status
+  debug:
+    msg: "Backend pods ready: {{ backend_pods.resources | length }} pod(s)"
+
+- name: Wait for Frontend pods to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ project_namespace }}"
+    label_selectors:
+      - app=frontend
+    wait: yes
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 180
+  register: frontend_pods
+
+- name: Display frontend pod status
+  debug:
+    msg: "Frontend pods ready: {{ frontend_pods.resources | length }} pod(s)"
+
+- name: All deployments ready
+  debug:
+    msg: "All application components are running!"

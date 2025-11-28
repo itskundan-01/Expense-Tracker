@@ -148,7 +148,7 @@ function App() {
         
         // Test API connectivity
         try {
-          const response = await fetch('http://localhost:8080/api/health');
+          const response = await fetch('/api/health');
           if (response.ok) {
             const health = await response.json();
             console.log('🔥 APP - Backend connectivity test: SUCCESS', health);

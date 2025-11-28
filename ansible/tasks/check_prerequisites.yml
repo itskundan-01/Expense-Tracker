@@ -1,0 +1,54 @@
+---
+# Check Prerequisites Task
+
+- name: Check if Docker is installed
+  command: docker --version
+  register: docker_version
+  changed_when: false
+  failed_when: docker_version.rc != 0
+
+- name: Display Docker version
+  debug:
+    msg: "Docker version: {{ docker_version.stdout }}"
+
+- name: Check if kubectl is installed
+  command: kubectl version --client
+  register: kubectl_version
+  changed_when: false
+  failed_when: kubectl_version.rc != 0
+
+- name: Display kubectl version
+  debug:
+    msg: "kubectl installed successfully"
+
+- name: Check Kubernetes cluster connectivity
+  command: kubectl cluster-info
+  register: cluster_info
+  changed_when: false
+  failed_when: false
+
+- name: Warn if cluster not accessible
+  debug:
+    msg: "Warning: Kubernetes cluster not accessible. Make sure cluster is running."
+  when: cluster_info.rc != 0
+
+- name: Check if project directories exist
+  stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ server_path }}"
+    - "{{ client_path }}"
+    - "{{ k8s_manifests_path }}"
+  register: dir_check
+
+- name: Verify directories exist
+  fail:
+    msg: "Directory {{ item.item }} does not exist!"
+  loop: "{{ dir_check.results }}"
+  when: not item.stat.exists
+  loop_control:
+    label: "{{ item.item }}"
+
+- name: Prerequisites check complete
+  debug:
+    msg: "All prerequisites met!"

@@ -1,0 +1,56 @@
+---
+# Show Deployment Status Task
+
+- name: Get all pods
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ project_namespace }}"
+  register: all_pods
+
+- name: Display pod status
+  debug:
+    msg: |
+      Pod: {{ item.metadata.name }}
+      Status: {{ item.status.phase }}
+      Ready: {{ item.status.containerStatuses[0].ready | default('N/A') }}
+  loop: "{{ all_pods.resources }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Get all services
+  kubernetes.core.k8s_info:
+    kind: Service
+    namespace: "{{ project_namespace }}"
+  register: all_services
+
+- name: Display services
+  debug:
+    msg: |
+      Service: {{ item.metadata.name }}
+      Type: {{ item.spec.type }}
+      ClusterIP: {{ item.spec.clusterIP }}
+      Ports: {{ item.spec.ports | map(attribute='port') | list }}
+  loop: "{{ all_services.resources }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Get frontend NodePort
+  kubernetes.core.k8s_info:
+    kind: Service
+    namespace: "{{ project_namespace }}"
+    name: frontend-service
+  register: frontend_service
+
+- name: Display access information
+  debug:
+    msg: |
+      ==========================================
+      Application Access Information
+      ==========================================
+      Frontend NodePort: {{ frontend_service.resources[0].spec.ports[0].nodePort | default(node_port) }}
+      
+      Access Methods:
+      1. Minikube: minikube service frontend-service -n {{ project_namespace }}
+      2. Kind: kubectl port-forward service/frontend-service 8080:80 -n {{ project_namespace }}
+      3. NodePort: http://<node-ip>:{{ frontend_service.resources[0].spec.ports[0].nodePort | default(node_port) }}
+      ==========================================

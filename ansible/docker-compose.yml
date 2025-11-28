@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: expense-tracker-mysql-ansible
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-ImKundan}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-expense_tracker}
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_ansible:/var/lib/mysql
+    networks:
+      - expense-tracker-network-ansible
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pImKundan"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  backend:
+    image: expense-tracker-backend:latest
+    container_name: expense-tracker-backend-ansible
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Use production profile
+      SPRING_PROFILES_ACTIVE: prod
+      # Database configuration
+      DATABASE_URL: jdbc:mysql://mysql:3306/expense_tracker?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: ImKundan
+      DATABASE_DRIVER: com.mysql.cj.jdbc.Driver
+      DATABASE_PLATFORM: org.hibernate.dialect.MySQLDialect
+      DDL_AUTO: update
+      # JWT
+      JWT_SECRET: mySecretKeyForJWTTokenGenerationThatIsAtLeast256BitsLong2024
+      JWT_EXPIRATION: 86400000
+      # CORS
+      ALLOWED_ORIGINS: http://localhost:3000,http://localhost:8081
+    ports:
+      - "8081:8080"
+    networks:
+      - expense-tracker-network-ansible
+    restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  frontend:
+    image: expense-tracker-frontend:latest
+    container_name: expense-tracker-frontend-ansible
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./nginx-compose.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - expense-tracker-network-ansible
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  expense-tracker-network-ansible:
+    driver: bridge
+
+volumes:
+  mysql_data_ansible:
+    driver: local

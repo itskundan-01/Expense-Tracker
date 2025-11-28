@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-configmap
+  namespace: expense-tracker
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  DATABASE_URL: "jdbc:mysql://mysql-service:3306/expense_tracker?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC"
+  DATABASE_DRIVER: "com.mysql.cj.jdbc.Driver"
+  DATABASE_PLATFORM: "org.hibernate.dialect.MySQLDialect"
+  SERVER_PORT: "8080"

@@ -1,0 +1,186 @@
+# Ansible playbook for Docker Compose deployment
+# This deploys the Expense Tracker using Docker Compose on different ports
+# Frontend: 3000, Backend: 8081, MySQL: 3307
+
+---
+- name: Deploy Expense Tracker with Docker Compose
+  hosts: localhost
+  connection: local
+  gather_facts: true
+
+  vars:
+    project_name: expense-tracker
+    project_path: "{{ playbook_dir }}/.."
+    ansible_path: "{{ playbook_dir }}"
+    docker_compose_file: "{{ ansible_path }}/docker-compose.yml"
+    
+    # Ports (different from Kubernetes to avoid conflicts)
+    frontend_port: 3000
+    backend_port: 8081
+    mysql_port: 3307
+    
+    # Database credentials
+    mysql_root_password: "ImKundan"
+    mysql_database: "expense_tracker"
+    jwt_secret: "mySecretKeyForJWTTokenGenerationThatIsAtLeast256BitsLong2024"
+
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          ==========================================
+          Expense Tracker Docker Compose Deployment
+          ==========================================
+          Project: {{ project_name }}
+          Frontend Port: {{ frontend_port }}
+          Backend Port: {{ backend_port }}
+          MySQL Port: {{ mysql_port }}
+          ==========================================
+
+    - name: Check if Docker is installed
+      command: docker --version
+      register: docker_version
+      changed_when: false
+      failed_when: docker_version.rc != 0
+
+    - name: Display Docker version
+      debug:
+        msg: "Docker: {{ docker_version.stdout }}"
+
+    - name: Check if Docker Compose is available
+      command: docker compose version
+      register: compose_version
+      changed_when: false
+      failed_when: compose_version.rc != 0
+
+    - name: Display Docker Compose version
+      debug:
+        msg: "Docker Compose: {{ compose_version.stdout }}"
+
+    - name: Check if backend image exists
+      command: docker images expense-tracker-backend:latest -q
+      register: backend_image
+      changed_when: false
+
+    - name: Check if frontend image exists
+      command: docker images expense-tracker-frontend:latest -q
+      register: frontend_image
+      changed_when: false
+
+    - name: Build backend image if not exists
+      command: docker build -t expense-tracker-backend:latest {{ project_path }}/server
+      when: backend_image.stdout == ""
+      register: backend_build
+
+    - name: Build frontend image if not exists
+      command: docker build -t expense-tracker-frontend:latest {{ project_path }}/client
+      when: frontend_image.stdout == ""
+      register: frontend_build
+
+    - name: Stop existing containers if running
+      command: docker compose -f {{ docker_compose_file }} down
+      args:
+        chdir: "{{ ansible_path }}"
+      ignore_errors: true
+      register: compose_down
+
+    - name: Remove old volumes (optional clean start)
+      command: docker volume rm ansible_mysql_data_ansible
+      ignore_errors: true
+      when: false  # Set to true for clean start
+
+    - name: Start Docker Compose services
+      command: docker compose -f {{ docker_compose_file }} up -d
+      args:
+        chdir: "{{ ansible_path }}"
+      environment:
+        MYSQL_ROOT_PASSWORD: "{{ mysql_root_password }}"
+        MYSQL_DATABASE: "{{ mysql_database }}"
+        JWT_SECRET: "{{ jwt_secret }}"
+      register: compose_up
+
+    - name: Display compose up output
+      debug:
+        msg: "{{ compose_up.stdout_lines | default([]) }}"
+      when: compose_up.stdout_lines is defined
+
+    - name: Wait for MySQL to be healthy
+      command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' expense-tracker-mysql-ansible
+      register: mysql_health
+      until: mysql_health.stdout == "healthy"
+      retries: 30
+      delay: 5
+      changed_when: false
+
+    - name: Wait for Backend to be healthy
+      command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' expense-tracker-backend-ansible
+      register: backend_health
+      until: backend_health.stdout == "healthy"
+      retries: 60
+      delay: 5
+      changed_when: false
+
+    - name: Wait for Frontend to be running
+      command: docker inspect --format='{{ '{{' }}.State.Status{{ '}}' }}' expense-tracker-frontend-ansible
+      register: frontend_status
+      until: frontend_status.stdout == "running"
+      retries: 10
+      delay: 5
+      changed_when: false
+
+    - name: Get container status
+      command: docker compose -f {{ docker_compose_file }} ps
+      args:
+        chdir: "{{ ansible_path }}"
+      register: compose_ps
+      changed_when: false
+
+    - name: Display container status
+      debug:
+        msg: "{{ compose_ps.stdout_lines }}"
+
+    - name: Test frontend accessibility
+      uri:
+        url: "http://localhost:{{ frontend_port }}"
+        method: GET
+        status_code: 200
+      register: frontend_test
+      retries: 5
+      delay: 5
+      until: frontend_test.status == 200
+
+    - name: Test backend health endpoint
+      uri:
+        url: "http://localhost:{{ backend_port }}/api/health"
+        method: GET
+        status_code: 200
+      register: backend_test
+      retries: 5
+      delay: 5
+      until: backend_test.status == 200
+
+    - name: Deployment Summary
+      debug:
+        msg: |
+          ==========================================
+          🎉 Deployment Successful!
+          ==========================================
+          
+          Access URLs:
+          ─────────────────────────────────────────
+          Frontend:  http://localhost:{{ frontend_port }}
+          Backend:   http://localhost:{{ backend_port }}/api
+          
+          Container Status:
+          ─────────────────────────────────────────
+          MySQL:     {{ mysql_health.stdout }}
+          Backend:   {{ backend_health.stdout }}
+          Frontend:  {{ frontend_status.stdout }}
+          
+          Useful Commands:
+          ─────────────────────────────────────────
+          View logs:     docker compose -f {{ docker_compose_file }} logs -f
+          Stop:          docker compose -f {{ docker_compose_file }} down
+          Restart:       docker compose -f {{ docker_compose_file }} restart
+          
+          ==========================================

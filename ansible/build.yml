@@ -1,0 +1,54 @@
+---
+# Playbook to build Docker images only
+
+- name: Build Expense Tracker Docker Images
+  hosts: local
+  gather_facts: no
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: Check if Docker is running
+      command: docker info
+      register: docker_info
+      changed_when: false
+      failed_when: docker_info.rc != 0
+
+    - name: Build Backend Docker Image
+      community.docker.docker_image:
+        name: "expense-tracker-backend"
+        tag: "{{ image_tag }}"
+        source: build
+        build:
+          path: "{{ server_path }}"
+          pull: yes
+        state: present
+      register: backend_build
+
+    - name: Display backend build status
+      debug:
+        msg: "Backend image: expense-tracker-backend:{{ image_tag }} - Built successfully!"
+
+    - name: Build Frontend Docker Image
+      community.docker.docker_image:
+        name: "expense-tracker-frontend"
+        tag: "{{ image_tag }}"
+        source: build
+        build:
+          path: "{{ client_path }}"
+          pull: yes
+        state: present
+      register: frontend_build
+
+    - name: Display frontend build status
+      debug:
+        msg: "Frontend image: expense-tracker-frontend:{{ image_tag }} - Built successfully!"
+
+    - name: List all built images
+      command: docker images --filter "reference=expense-tracker-*"
+      register: images_list
+      changed_when: false
+
+    - name: Display images
+      debug:
+        msg: "{{ images_list.stdout_lines }}"

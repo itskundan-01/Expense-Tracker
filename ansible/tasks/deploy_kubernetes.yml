@@ -1,0 +1,79 @@
+---
+# Deploy to Kubernetes Task
+
+- name: Create namespace
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ project_namespace }}"
+        labels:
+          app: "{{ project_name }}"
+
+- name: Apply MySQL Secret
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/mysql-secret.yaml"
+
+- name: Apply MySQL ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/mysql-configmap.yaml"
+
+- name: Apply MySQL PersistentVolume
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/mysql-pv.yaml"
+
+- name: Apply MySQL Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/mysql-deployment.yaml"
+
+- name: Wait for MySQL to be ready
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: "{{ project_namespace }}"
+    label_selectors:
+      - app=mysql
+    wait: yes
+    wait_condition:
+      type: Ready
+      status: "True"
+    wait_timeout: 180
+
+- name: Apply Backend Secret
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/backend-secret.yaml"
+
+- name: Apply Backend ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/backend-configmap.yaml"
+
+- name: Apply Backend Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/backend-deployment.yaml"
+
+- name: Apply Frontend ConfigMap
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/frontend-configmap.yaml"
+
+- name: Apply Frontend Deployment
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/frontend-deployment.yaml"
+
+- name: Apply Ingress
+  kubernetes.core.k8s:
+    state: present
+    src: "{{ k8s_manifests_path }}/ingress.yaml"
+
+- name: Deployment applied successfully
+  debug:
+    msg: "All Kubernetes manifests applied successfully!"

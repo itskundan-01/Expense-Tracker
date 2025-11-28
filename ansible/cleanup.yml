@@ -1,0 +1,80 @@
+---
+# Cleanup Playbook - Remove all Expense Tracker resources from Kubernetes
+
+- name: Cleanup Expense Tracker Deployment
+  hosts: local
+  gather_facts: no
+  vars_files:
+    - group_vars/all.yml
+
+  tasks:
+    - name: Delete Ingress
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/ingress.yaml"
+      ignore_errors: yes
+
+    - name: Delete Frontend Deployment
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/frontend-deployment.yaml"
+      ignore_errors: yes
+
+    - name: Delete Frontend ConfigMap
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/frontend-configmap.yaml"
+      ignore_errors: yes
+
+    - name: Delete Backend Deployment
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/backend-deployment.yaml"
+      ignore_errors: yes
+
+    - name: Delete Backend ConfigMap
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/backend-configmap.yaml"
+      ignore_errors: yes
+
+    - name: Delete Backend Secret
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/backend-secret.yaml"
+      ignore_errors: yes
+
+    - name: Delete MySQL Deployment
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/mysql-deployment.yaml"
+      ignore_errors: yes
+
+    - name: Delete MySQL PV and PVC
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/mysql-pv.yaml"
+      ignore_errors: yes
+
+    - name: Delete MySQL ConfigMap
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/mysql-configmap.yaml"
+      ignore_errors: yes
+
+    - name: Delete MySQL Secret
+      kubernetes.core.k8s:
+        state: absent
+        src: "{{ k8s_manifests_path }}/mysql-secret.yaml"
+      ignore_errors: yes
+
+    - name: Delete Namespace
+      kubernetes.core.k8s:
+        state: absent
+        kind: Namespace
+        name: "{{ project_namespace }}"
+      ignore_errors: yes
+
+    - name: Cleanup complete
+      debug:
+        msg: "All Expense Tracker resources have been removed from Kubernetes!"

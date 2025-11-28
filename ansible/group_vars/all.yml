@@ -1,0 +1,53 @@
+---
+# Variables for Expense Tracker Deployment
+
+# Project Settings
+project_name: expense-tracker
+project_namespace: expense-tracker
+
+# Docker Registry (for production, use your registry)
+docker_registry: ""
+image_tag: latest
+
+# Database Settings
+mysql_root_password: "ImKundan"
+mysql_database: "expense_tracker"
+mysql_user: "root"
+mysql_password: "ImKundan"
+
+# Backend Settings
+spring_profiles_active: "prod"
+jwt_secret: "mySuperSecretKeyForJWTTokenGeneration1234567890"
+server_port: 8080
+
+# Frontend Settings
+frontend_port: 80
+node_port: 30080
+
+# Kubernetes Settings
+k8s_context: ""  # Leave empty to use current context
+kubeconfig_path: "~/.kube/config"
+
+# Resource Limits
+mysql_memory_request: "512Mi"
+mysql_memory_limit: "1Gi"
+mysql_cpu_request: "250m"
+mysql_cpu_limit: "500m"
+
+backend_memory_request: "512Mi"
+backend_memory_limit: "1Gi"
+backend_cpu_request: "250m"
+backend_cpu_limit: "500m"
+backend_replicas: 2
+
+frontend_memory_request: "128Mi"
+frontend_memory_limit: "256Mi"
+frontend_cpu_request: "100m"
+frontend_cpu_limit: "200m"
+frontend_replicas: 2
+
+# Paths
+project_root: "{{ playbook_dir }}/.."
+k8s_manifests_path: "{{ project_root }}/k8s"
+server_path: "{{ project_root }}/server"
+client_path: "{{ project_root }}/client"

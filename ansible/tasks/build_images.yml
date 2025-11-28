@@ -1,0 +1,41 @@
+---
+# Build Docker Images Task
+
+- name: Build Backend Docker Image
+  community.docker.docker_image:
+    name: "{{ docker_registry }}expense-tracker-backend"
+    tag: "{{ image_tag }}"
+    source: build
+    build:
+      path: "{{ server_path }}"
+      pull: yes
+    state: present
+  register: backend_build
+
+- name: Display backend build result
+  debug:
+    msg: "Backend image built: {{ docker_registry }}expense-tracker-backend:{{ image_tag }}"
+
+- name: Build Frontend Docker Image
+  community.docker.docker_image:
+    name: "{{ docker_registry }}expense-tracker-frontend"
+    tag: "{{ image_tag }}"
+    source: build
+    build:
+      path: "{{ client_path }}"
+      pull: yes
+    state: present
+  register: frontend_build
+
+- name: Display frontend build result
+  debug:
+    msg: "Frontend image built: {{ docker_registry }}expense-tracker-frontend:{{ image_tag }}"
+
+- name: List built images
+  command: docker images --filter "reference=expense-tracker-*" --format "table {{ '{{' }}.Repository{{ '}}' }}\t{{ '{{' }}.Tag{{ '}}' }}\t{{ '{{' }}.Size{{ '}}' }}"
+  register: docker_images
+  changed_when: false
+
+- name: Display built images
+  debug:
+    msg: "{{ docker_images.stdout_lines }}"

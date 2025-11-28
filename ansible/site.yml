@@ -1,0 +1,71 @@
+---
+# Main Playbook for Expense Tracker Full-Stack Deployment
+# This playbook orchestrates the complete deployment process
+
+- name: Deploy Expense Tracker Application
+  hosts: local
+  gather_facts: yes
+  vars_files:
+    - group_vars/all.yml
+
+  pre_tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          ==========================================
+          Expense Tracker Kubernetes Deployment
+          ==========================================
+          Project: {{ project_name }}
+          Namespace: {{ project_namespace }}
+          Image Tag: {{ image_tag }}
+          ==========================================
+      tags: always
+
+    - name: Check prerequisites
+      include_tasks: tasks/check_prerequisites.yml
+      tags: always
+
+  tasks:
+    - name: Build Docker images
+      include_tasks: 
+        file: tasks/build_images.yml
+        apply:
+          tags: [build, full]
+      tags: [build, full]
+
+    - name: Deploy to Kubernetes
+      include_tasks: 
+        file: tasks/deploy_kubernetes.yml
+        apply:
+          tags: [deploy, full]
+      tags: [deploy, full]
+
+    - name: Wait for deployments
+      include_tasks: 
+        file: tasks/wait_deployments.yml
+        apply:
+          tags: [deploy, full]
+      tags: [deploy, full]
+
+    - name: Display deployment status
+      include_tasks: 
+        file: tasks/show_status.yml
+        apply:
+          tags: [status, deploy, full]
+      tags: [status, deploy, full]
+
+  post_tasks:
+    - name: Deployment Summary
+      debug:
+        msg: |
+          ==========================================
+          Deployment Complete!
+          ==========================================
+          Namespace: {{ project_namespace }}
+          Frontend NodePort: {{ node_port }}
+          
+          Access the application:
+          - If using minikube: minikube service frontend-service -n {{ project_namespace }}
+          - If using kind: kubectl port-forward service/frontend-service {{ node_port }}:80 -n {{ project_namespace }}
+          ==========================================
+      tags: always

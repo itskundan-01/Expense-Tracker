@@ -1,7 +1,9 @@
 import axios from 'axios';
 
-// Base API configuration - use environment variable or fallback to localhost
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+// Base API configuration - use relative path for K8s/Docker compatibility
+// Vite dev server will proxy /api to localhost:8080
+// In production (nginx), /api is proxied to backend-service
+const API_BASE_URL = '/api';
 
 // Create axios instance with default config
 const api = axios.create({
